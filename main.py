@@ -1,8 +1,8 @@
 import threading
 import src.first_version as src
+import logging
 
 def main():
-
     # retrieve access token
     authObject = src.Authenticate()
     access_token = authObject.access_token

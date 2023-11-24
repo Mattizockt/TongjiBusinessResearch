@@ -2,25 +2,19 @@
 import time
 import requests
 import schedule
+import logging
 
 class Authenticate:
 
     def __init__(self):
         self.authorize()
         self.request_access_token()
-
-    @property
-    def access_token(self):
-        return self._access_token
-    
-    @property
-    def refresh_token(self):
-        return self._refresh_token
     
     def authorize(self):  
         url = "https://www.deviantart.com/oauth2/authorize?response_type=code&client_id=29751&redirect_uri=http://localhost:3000/callback&scope=browse"
         print(f"Please go to {url}\n")
 
+    # TODO check token
     def request_access_token(self):
         code = input("Please input the code: ")
         url = "https://www.deviantart.com/oauth2/token"
@@ -39,8 +33,10 @@ class Authenticate:
             response_json = response.json()
             self._access_token = response_json["access_token"]
             self._refresh_token = response_json["refresh_token"]
+            logging.info(f"Access token successfully requested.")
+
         except requests.exceptions.RequestException as e:
-            print(f"Error when requesting an access token: {e}")
+            logging.error(f"Error when requesting an access token: {e}.")
 
     def auto_refresh(self):
         schedule.every(55).minutes.do(self.refresh_access_token)
@@ -63,7 +59,15 @@ class Authenticate:
             response_json = response.json()
             self._access_token = response_json["access_token"]
             self._refresh_token = response_json["refresh_token"]
-        except requests.exceptions.RequestException as e:
-            print(f"Error: {e}")
+            logging.info("Successfully refreshed access token.")
 
-  
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error when refreshing access token: {e}.")
+
+    @property
+    def access_token(self):
+        return self._access_token
+    
+    @property
+    def refresh_token(self):
+        return self._refresh_token

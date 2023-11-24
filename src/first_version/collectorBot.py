@@ -2,13 +2,21 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 from sqlManager import SQLManager
+import logging
 
 def main():
     sqlManager = SQLManager("localhost", "root" ,"", "airesearch")
     cB = CollectorBot(sqlManager)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename="basic.log",
+        force=True
+    )
 
     users = []
     with open("data/testData/users.txt", "r") as file:
@@ -17,11 +25,10 @@ def main():
     for user in users:
         cB.user_information(user)
 
-# TODO what to do next, make sure that if there's a timeout
-# when using a vpn, the program does not crashes.
 # also maybe insert -1 if the users does not display their values to differenitate from
 # people that are just losers
 # also check if losers have the same "symptome" (you can't see their badges) as "edgy" people
+# then implement post scraper.
 class CollectorBot:
 
     def __init__(self, sqlManager):
@@ -32,53 +39,73 @@ class CollectorBot:
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         self._driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        self._driver.set_page_load_timeout(5000)
 
-    
     def user_information(self, username):
-        assert isinstance(username, str)
+        assert(isinstance(username, str))
 
-        self._driver.get(f"https://www.deviantart.com/{username}/about")
-        
-        # verify that user is not blocked, otherwise, remove from database
+        logging.info(f"Processing user information for {username}.")
+
+        try: 
+            self._driver.get(f"https://www.deviantart.com/{username}/about")
+
+        except TimeoutException as e:
+            logging.error(f"Page load timeout for user {username}: {e}")
+
+        try:
+            self._verify_user_status(username)
+            badges_giv, badges_rec = self._get_badges_info(username)
+            groups_joined = self._get_groups_info(username)
+            bio = self._get_user_bio(username)
+
+            self._sqlManager.update_with_user_scrape(username, badges_rec, badges_giv, groups_joined, bio)
+
+        except Exception as e:
+            logging.error(f"Error processing user information for user {username}: {str(e)}")
+
+    def _verify_user_status(self, username):
         if "Deactivated Account" in self._driver.title:
+            logging.warning(f"User {username} has a deactivated account. Removing from the database.")
             self._sqlManager.remove_user(username)
 
-        # number of badges gave, received
-        badges_giv = None
-        badges_rec = None
-        try: 
-            xpath_num_badges = "//div[@class='_6Syj_']//strong"
-            num_badges_elem = self._driver.find_elements(By.XPATH, xpath_num_badges)
-            if num_badges_elem == []:
-                raise NoSuchElementException()
-            
-            assert(len(num_badges_elem) == 2)
+    def _get_badges_info(self, username):
+        xpath = "//div[@class='_6Syj_']//strong"
+        num_badges_elem = self._driver.find_elements(By.XPATH, xpath)
 
-            badges_giv = self.convert_K_str_to_int(num_badges_elem[0].get_attribute("title"))
-            badges_rec = self.convert_K_str_to_int(num_badges_elem[1].get_attribute("title"))
-            print(badges_giv, badges_rec)
+        if len(num_badges_elem) != 2:
+            logging.warning(f"User {username} does not display the expected number of badges.")
+            return None, None
 
-        except NoSuchElementException:
-            print(f"user {username} does not display his received badges.")
+        badges_giv = self._convert_K_str_to_int(num_badges_elem[0].get_attribute("title"))
+        badges_rec = self._convert_K_str_to_int(num_badges_elem[1].get_attribute("title"))
 
-        # number of groups that are joined.
-        groups_joined = None
+        logging.info(f"Users {username}'s badges: Given - {badges_giv}, Received - {badges_rec}")
+        return badges_giv, badges_rec
+
+    def _get_groups_info(self, username):
         try:
-            xpath_num_groups = "//section[@id='group_list_members']//div[@class='HhEXv' and contains(text(), 'Groups')]"
-            num_groups_elem = self._driver.find_element(By.XPATH, xpath_num_groups).text.split(" ")
-            assert(len(num_groups_elem) == 2)
+            xpath = "//section[@id='group_list_members']//div[@class='HhEXv' and contains(text(), 'Groups')]"
+            num_groups_elem = self._driver.find_element(By.XPATH, xpath).text.split(" ")
+            return self._convert_K_str_to_int(num_groups_elem[0])
 
-            groups_joined = self.convert_K_str_to_int(num_groups_elem[0])
-            print(groups_joined)
-            
         except NoSuchElementException:
-            print(f"user {username} does not display the groups he has joined")
+            logging.info(f"User {username} does not displayed joined groups.")
+            return None
 
-        # insert badge and group details
-        self._sqlManager.update_with_user_scrape(username, badges_rec, badges_giv, groups_joined)
+    def _get_user_bio(self, username):
+        try:
+            xpath = "//p[@class='mm8Nw _1j-51 _35HYg _1oBmu _1FoOD _3M0Fe public-DraftStyleDefault-block-depth0 public-DraftStyleDefault-text-ltr']"
+            bio_elem = self._driver.find_elements(By.XPATH, xpath)
 
+            bio = "".join(x.text for x in bio_elem)
+            logging.info(f"User {username}'s bio: {bio}")
+            return bio
 
-    def convert_K_str_to_int(self, s):
+        except NoSuchElementException:
+            logging.info(f"User {username} doesn't have a bio.")
+            return None
+
+    def _convert_K_str_to_int(self, s):
         assert(isinstance(s, str))
 
         multiplier = 1
