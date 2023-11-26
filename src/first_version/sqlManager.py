@@ -13,8 +13,6 @@ class SQLManager:
         self.create_users_table()
         self.create_deviations_table()
 
-    # location: longest location name, united kingdom
-    # TODO restart table, since i changed username to unique
     def create_users_table(self):
         query = """
         CREATE TABLE IF NOT EXISTS users (
@@ -68,8 +66,6 @@ class SQLManager:
         logging.info("Initializing deviations table.")
         self._execute_query(query)
     
-    # TODO what happens, if we want to insert element that already exists?
-    # right now, we just overwrite the entry
     def insert_user(self, user_file):
         user_obj = user_file.get("user", {})
 
