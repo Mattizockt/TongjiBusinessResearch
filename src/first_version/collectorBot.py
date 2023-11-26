@@ -25,7 +25,7 @@ def main():
             users = [line.strip() for line in file.readlines()]
     
     for user in users:
-        cB.user_information(user)
+        cB.get_user_information(user)
 
 class CollectorBot:
 
@@ -39,7 +39,7 @@ class CollectorBot:
         self._driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         self._driver.set_page_load_timeout(5000)
 
-    def user_information(self, username):
+    def get_user_information(self, username):
         assert(isinstance(username, str))
 
         logging.info(f"Processing user information for {username}.")
