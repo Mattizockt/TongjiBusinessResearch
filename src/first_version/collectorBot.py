@@ -10,6 +10,8 @@ import logging
 def main():
     sqlManager = SQLManager("localhost", "root" ,"", "airesearch")
     cB = CollectorBot(sqlManager)
+
+    # TODO add loging config to __init__ later 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -23,12 +25,8 @@ def main():
             users = [line.strip() for line in file.readlines()]
     
     for user in users:
-        cB.user_information(user)
+        cB.get_user_information(user)
 
-# also maybe insert -1 if the users does not display their values to differenitate from
-# people that are just losers
-# also check if losers have the same "symptome" (you can't see their badges) as "edgy" people
-# then implement post scraper.
 class CollectorBot:
 
     def __init__(self, sqlManager):
@@ -41,7 +39,7 @@ class CollectorBot:
         self._driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         self._driver.set_page_load_timeout(5000)
 
-    def user_information(self, username):
+    def get_user_information(self, username):
         assert(isinstance(username, str))
 
         logging.info(f"Processing user information for {username}.")
@@ -53,12 +51,12 @@ class CollectorBot:
             logging.error(f"Page load timeout for user {username}: {e}")
 
         try:
-            self._verify_user_status(username)
-            badges_giv, badges_rec = self._get_badges_info(username)
-            groups_joined = self._get_groups_info(username)
-            bio = self._get_user_bio(username)
+            if self._verify_user_status(username):
+                badges_giv, badges_rec = self._get_badges_info(username)
+                groups_joined = self._get_groups_info(username)
+                bio = self._get_user_bio(username)
 
-            self._sqlManager.update_with_user_scrape(username, badges_rec, badges_giv, groups_joined, bio)
+                self._sqlManager.update_with_user_scrape(username, badges_rec, badges_giv, groups_joined, bio)
 
         except Exception as e:
             logging.error(f"Error processing user information for user {username}: {str(e)}")
@@ -67,13 +65,15 @@ class CollectorBot:
         if "Deactivated Account" in self._driver.title:
             logging.warning(f"User {username} has a deactivated account. Removing from the database.")
             self._sqlManager.remove_user(username)
+            return False
+        return True
 
     def _get_badges_info(self, username):
         xpath = "//div[@class='_6Syj_']//strong"
         num_badges_elem = self._driver.find_elements(By.XPATH, xpath)
 
         if len(num_badges_elem) != 2:
-            logging.warning(f"User {username} does not display the expected number of badges.")
+            logging.info(f"No information available to User {username}'s number of badges.")
             return None, None
 
         badges_giv = self._convert_K_str_to_int(num_badges_elem[0].get_attribute("title"))
@@ -84,12 +84,12 @@ class CollectorBot:
 
     def _get_groups_info(self, username):
         try:
-            xpath = "//section[@id='group_list_members']//div[@class='HhEXv' and contains(text(), 'Groups')]"
+            xpath = "//section[@id='group_list_members']//div[@class='HhEXv' and contains(text(), 'Group')]"
             num_groups_elem = self._driver.find_element(By.XPATH, xpath).text.split(" ")
             return self._convert_K_str_to_int(num_groups_elem[0])
 
         except NoSuchElementException:
-            logging.info(f"User {username} does not displayed joined groups.")
+            logging.info(f"No information available for User {username}'s  joined groups.")
             return None
 
     def _get_user_bio(self, username):

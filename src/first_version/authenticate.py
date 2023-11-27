@@ -14,7 +14,6 @@ class Authenticate:
         url = "https://www.deviantart.com/oauth2/authorize?response_type=code&client_id=29751&redirect_uri=http://localhost:3000/callback&scope=browse"
         print(f"Please go to {url}\n")
 
-    # TODO check token
     def request_access_token(self):
         code = input("Please input the code: ")
         url = "https://www.deviantart.com/oauth2/token"
@@ -37,6 +36,9 @@ class Authenticate:
 
         except requests.exceptions.RequestException as e:
             logging.error(f"Error when requesting an access token: {e}.")
+
+        except KeyError:
+            logging.error(f"Access/Request token is not valid.")
 
     def auto_refresh(self):
         schedule.every(55).minutes.do(self.refresh_access_token)

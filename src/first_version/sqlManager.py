@@ -13,8 +13,6 @@ class SQLManager:
         self.create_users_table()
         self.create_deviations_table()
 
-    # location: longest location name, united kingdom
-    # TODO restart table, since i changed username to unique
     def create_users_table(self):
         query = """
         CREATE TABLE IF NOT EXISTS users (
@@ -44,7 +42,8 @@ class SQLManager:
         self._execute_query(query)
 
     # printid: find out meaning
-    # views: has to be scraped with bot
+    # views, ai_marked: has to be scraped with bot
+    # restart table
     def create_deviations_table(self):
         query = """
         CREATE TABLE IF NOT EXISTS deviations (
@@ -52,28 +51,76 @@ class SQLManager:
             printid VARCHAR(36),
             url VARCHAR(255),
             title VARCHAR(255),
-            likes INT,
+            favourites INT,
             comments INT,
             views INT,
             category VARCHAR(255),
             category_path VARCHAR(255),
-            authorid VARCHAR(36) NOT NULL,
+            author_username VARCHAR(40) NOT NULL,
             is_downloadable VARCHAR(36),
             src TEXT,
+            published_time VARCHAR(11),
+            ai_marked BOOLEAN,
 
-            CONSTRAINT fk_deviations_users 
-            FOREIGN KEY (authorid) REFERENCES users(username) ON DELETE CASCADE
+            CONSTRAINT fk_deviations_users
+            FOREIGN KEY (author_username) REFERENCES users(username) ON DELETE CASCADE
         );
         """
         logging.info("Initializing deviations table.")
         self._execute_query(query)
     
-    # TODO what happens, if we want to insert element that already exists?
-    # right now, we just overwrite the entry
-    def insert_user(self, user_file):
-        user_obj = user_file.get("user", {})
+    def insert_deviation(self, dev_file):
+        assert(isinstance(dev_file, dict))
 
+        deviationid =  dev_file.get("deviationid", None)
+        data_to_insert = {
+            "deviationid" : deviationid,
+            "printid" : dev_file.get("printid", None),
+            "url" : dev_file.get("url", None),
+            "title" : dev_file.get("title", None),
+            "favourites" : dev_file.get("stats", {}).get("favourites", None),
+            "comments" : dev_file.get("stats", {}).get("comments", None),
+            "author_username" : dev_file.get("author", {}).get("username", None),
+            "category" : dev_file.get("category", None),
+            "category_path" : dev_file.get("category_path", None),
+            "is_downloadable" : dev_file.get("is_downloadable", None),
+            "published_time" : dev_file.get("published_time", None),
+            "src" : dev_file.get("content",{}).get("src", None)
+        }
+
+        query = """
+            INSERT INTO deviations (
+                deviationid, printid, url, title, favourites, comments, author_username,
+                category, category_path, is_downloadable, published_time, src
+            )
+            VALUES (
+                %(deviationid)s, %(printid)s, %(url)s, %(title)s, %(favourites)s, 
+                %(comments)s, %(author_username)s, %(category)s, %(category_path)s, 
+                %(is_downloadable)s, %(published_time)s, %(src)s
+            )
+            ON DUPLICATE KEY UPDATE
+                deviationid = VALUES(deviationid),
+                printid = VALUES(printid),
+                url = VALUES(url),
+                title = VALUES(title),
+                favourites = VALUES(favourites),
+                comments = VALUES(comments),
+                author_username = VALUES(author_username),
+                category = VALUES(category),
+                category_path = VALUES(category_path),
+                is_downloadable = VALUES(is_downloadable),
+                src = VALUES(src),
+                published_time = VALUES(published_time);
+        """
+        logging.info(f"Inserting information for deviation {deviationid} into deviations from the deviation API.")
+        self._execute_query(query, data_to_insert)
+        
+    def insert_user(self, user_file):
+        assert(isinstance(user_file, dict))
+
+        user_obj = user_file.get("user", {})
         username = self._convert_to_lowercase(user_obj.get("username", None))
+
         data_to_insert = {
             'username' : username,
             'userid' : user_obj.get("userid", None),
@@ -84,7 +131,7 @@ class SQLManager:
             'joindate' : user_obj.get("details", {}).get("joindate", None),
             'website' : user_file.get("website", None),
             'sex' : user_obj.get("details", {}).get("sex", None),
-            'bio' : self._extract_text_from_html(user_file.get("bio", None)), # doesn't work, error from server side
+            'bio' : self._extract_text_from_html(user_file.get("bio", None)), # TODO doesn't work, error from server side
             'pageviews' : user_file.get("stats", {}).get("profile_pageviews", None),
             'deviations' : user_file.get("stats", {}).get("user_deviations", None),
             'watchers' : user_obj.get("stats", {}).get("watchers", None),
