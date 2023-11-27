@@ -15,8 +15,8 @@ def main():
         users = [line.strip() for line in file.readlines()]
 
     api_scraper = src.APIScraper(access_token)
-    # api_scraper.get_users(users)
-    api_scraper.get_deviations("francoisl-artblog")
+    api_scraper.get_users(users)
+    # api_scraper.get_deviations("francoisl-artblog")
 
     print("Finished collecting data. You can stop the programme now.")
 

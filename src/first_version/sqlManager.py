@@ -56,14 +56,14 @@ class SQLManager:
             views INT,
             category VARCHAR(255),
             category_path VARCHAR(255),
-            authorid VARCHAR(36) NOT NULL,
+            author_username VARCHAR(40) NOT NULL,
             is_downloadable VARCHAR(36),
             src TEXT,
             published_time VARCHAR(11),
             ai_marked BOOLEAN,
 
             CONSTRAINT fk_deviations_users
-            FOREIGN KEY (authorid) REFERENCES users(username) ON DELETE CASCADE
+            FOREIGN KEY (author_username) REFERENCES users(username) ON DELETE CASCADE
         );
         """
         logging.info("Initializing deviations table.")
@@ -80,6 +80,7 @@ class SQLManager:
             "title" : dev_file.get("title", None),
             "favourites" : dev_file.get("stats", {}).get("favourites", None),
             "comments" : dev_file.get("stats", {}).get("comments", None),
+            "author_username" : dev_file.get("author", {}).get("username", None),
             "category" : dev_file.get("category", None),
             "category_path" : dev_file.get("category_path", None),
             "is_downloadable" : dev_file.get("is_downloadable", None),
@@ -89,25 +90,27 @@ class SQLManager:
 
         query = """
             INSERT INTO deviations (
-                deviationid, printid, url, title, favourites, comments,
+                deviationid, printid, url, title, favourites, comments, author_username,
                 category, category_path, is_downloadable, published_time, src
             )
             VALUES (
-                %(deviationid)s, %(printid)s, %(url)s, %(title)s, %(favourites)s, %(comments)s,
-                %(category)s, %(category_path)s, %(is_downloadable)s, %(published_time)s, %(src)s
+                %(deviationid)s, %(printid)s, %(url)s, %(title)s, %(favourites)s, 
+                %(comments)s, %(author_username)s, %(category)s, %(category_path)s, 
+                %(is_downloadable)s, %(published_time)s, %(src)s
             )
             ON DUPLICATE KEY UPDATE
                 deviationid = VALUES(deviationid),
-                printid = VALUES(printid),rc
+                printid = VALUES(printid),
                 url = VALUES(url),
                 title = VALUES(title),
                 favourites = VALUES(favourites),
                 comments = VALUES(comments),
+                author_username = VALUES(author_username),
                 category = VALUES(category),
                 category_path = VALUES(category_path),
                 is_downloadable = VALUES(is_downloadable),
-                published_time = VALUES(published_time),
-                src = VALUES(src);
+                src = VALUES(src),
+                published_time = VALUES(published_time);
         """
         logging.info(f"Inserting information for deviation {deviationid} into deviations from the deviation API.")
         self._execute_query(query, data_to_insert)
