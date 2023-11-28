@@ -27,7 +27,6 @@ class APIScraper:
 
             if req_json is None:
                 logging.error("API call returned None.")
-                return
 
             request_error = req_json.get("error", {})
             if not request_error:
@@ -37,48 +36,54 @@ class APIScraper:
                 logging.error(f"Error when fetching resources for user {username}: {req_json.get('error_description')}")
      
     # TODO make username into array
-    def get_deviations(self, username):
+    def get_deviations(self, usernames):
+
         lower_date_bound = 1625068800 # july 2021
         upper_date_bound  = 1688140800 # july 2023
-
-        offset = 0
         limit = 24
-        has_more = True
-        finished = False
 
-        while (has_more and not finished):
+        for username in usernames:
+            offset = 0
+            has_more = True
+            finished = False
 
-            url = "https://www.deviantart.com/api/v1/oauth2/gallery/all"
-            params = {
-                    "access_token": self._access_token,
-                    "username": username,
-                    "limit" : limit,
-                    "offset" : offset,
-                    "mature_content" : "true",
-            }
+            while (has_more and not finished):
 
-            req_json = self._make_api_call(url, params)
+                url = "https://www.deviantart.com/api/v1/oauth2/gallery/all"
+                params = {
+                        "access_token": self._access_token,
+                        "username": username,
+                        "limit" : limit,
+                        "offset" : offset,
+                        "mature_content" : "true",
+                }
 
-            request_error = req_json.get("error", {})
-            if request_error:
-                logging.error(f"Error when fetching user {username} deviations, offset: {offset}, error: {req_json.get('error_description')}")
-                return
-            
-            logging.info(f"Successfully fetched information about user {username}'s deviations from API with offset: {offset}")
+                # TODO don't terminate project if there is a request error.
+                req_json = self._make_api_call(url, params)
 
-            deviations = req_json["results"]
-            offset += len(deviations)
-            has_more = req_json["has_more"]
-            
-            for dev in deviations:
-                published_time = int(dev["published_time"])
+                if req_json == None:
+                    continue
 
-                if published_time < lower_date_bound:
-                    finished = True
-                    break
+                request_error = req_json.get("error", {})
+                if request_error:
+                    logging.error(f"Error when fetching user {username} deviations, offset: {offset}, error: {req_json.get('error_description')}")
+                    return
+                
+                logging.info(f"Successfully fetched information about user {username}'s deviations from API with offset: {offset}")
 
-                if published_time <= upper_date_bound:
-                    self._manager.insert_deviation(dev)
+                deviations = req_json["results"]
+                offset += len(deviations)
+                has_more = req_json["has_more"]
+                
+                for dev in deviations:
+                    published_time = int(dev["published_time"])
+
+                    if published_time < lower_date_bound:
+                        finished = True
+                        break
+
+                    if published_time <= upper_date_bound:
+                        self._manager.insert_deviation(dev)
 
     def _make_api_call(self, url, params):
             retry_count = 0
@@ -111,9 +116,5 @@ class APIScraper:
 
 
     @property
-    def access_token(self):
-        return self._access_token
-    
-    @access_token.setter
-    def access_token(self, value):
-        self._access_token = value
+    def manager(self):
+        return self._manager

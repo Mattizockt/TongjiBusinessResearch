@@ -39,11 +39,11 @@ class SQLManager:
         );
         """
         logging.info("Initializing users table.")
-        self._execute_query(query)
+        self._execute_write_query(query)
 
     # printid: find out meaning
     # views, ai_marked: has to be scraped with bot
-    # restart table
+    # TODO restart table
     def create_deviations_table(self):
         query = """
         CREATE TABLE IF NOT EXISTS deviations (
@@ -57,17 +57,18 @@ class SQLManager:
             category VARCHAR(255),
             category_path VARCHAR(255),
             author_username VARCHAR(40) NOT NULL,
-            is_downloadable VARCHAR(36),
+            is_downloadable BOOLEAN,
             src TEXT,
             published_time VARCHAR(11),
             ai_marked BOOLEAN,
+            ai_tested BOOLEAN,
 
             CONSTRAINT fk_deviations_users
             FOREIGN KEY (author_username) REFERENCES users(username) ON DELETE CASCADE
         );
         """
         logging.info("Initializing deviations table.")
-        self._execute_query(query)
+        self._execute_write_query(query)
     
     def insert_deviation(self, dev_file):
         assert(isinstance(dev_file, dict))
@@ -113,7 +114,7 @@ class SQLManager:
                 published_time = VALUES(published_time);
         """
         logging.info(f"Inserting information for deviation {deviationid} into deviations from the deviation API.")
-        self._execute_query(query, data_to_insert)
+        self._execute_write_query(query, data_to_insert)
         
     def insert_user(self, user_file):
         assert(isinstance(user_file, dict))
@@ -172,7 +173,7 @@ class SQLManager:
             comm_rec = VALUES(comm_rec);
         """
         logging.info(f"Inserting information for user {username} into users from the deviation API.")
-        self._execute_query(query, data_to_insert)
+        self._execute_write_query(query, data_to_insert)
 
     def update_with_user_scrape(self, username, badges_rec, badges_giv, groups_joined, bio):
         data_to_insert = {
@@ -190,12 +191,39 @@ class SQLManager:
             groups_joined = %(groups_joined)s,
             bio = %(bio)s
         WHERE
-            username = %(username)s
-        ;
+            username = %(username)s;
         """
         logging.info(f"Updating user {username} in users with scraped information.")
-        self._execute_query(query, data_to_insert)
+        self._execute_write_query(query, data_to_insert)
+    
+    def update_with_dev_scrape(self, deviationid, views, ai_marked):
+        data_to_insert = {
+            "deviationid" : deviationid,
+            "views" : views,
+            "ai_marked" : ai_marked
+        }
 
+        query = """
+        UPDATE deviations SET
+            views = %(views)s,
+            ai_marked = %(ai_marked)s
+        WHERE
+            deviationid = %(deviationid)s;
+        """
+        logging.info(f"Updating deviation {deviationid} in deviations with scraped information")
+        self._execute_write_query(query, data_to_insert)
+
+    def select_dev_url_id(self):
+        query = """
+        SELECT
+            deviationid, url
+        FROM deviations
+        WHERE
+            views is null;
+        """
+        rows = self._execute_read_query(query)
+        return rows
+    
     def remove_user(self, username):
         data_to_insert = {'username' : username}
 
@@ -205,8 +233,19 @@ class SQLManager:
             username = %(username)s;
         """
         logging.info(f"Removed user {username} from users.")
-        self._execute_query(query, data_to_insert)
+        self._execute_write_query(query, data_to_insert)
     
+    def remove_deviation(self, deviationid):
+        data_to_insert = {"deviationid" : deviationid}
+
+        query = """
+        DELETE {FROM deviations
+        WHERE 
+            deviationid = %(deviationid)s;
+        """
+        logging.info(f"Removed deviation {deviationid} from deviations.")
+        self._execute_write_query(query, data_to_insert)
+
     def _create_db_connection(self, host_name, user_name, user_password, db_name):
         self.connection = None
         try:
@@ -221,7 +260,16 @@ class SQLManager:
         except Error as err:
             logging.error(f"Error when connecting with databank {db_name}: {err}.")
    
-    def _execute_query(self, query, dict_data={}):
+    def _execute_read_query(self, query, dict_data={}):
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(query, dict_data)
+            return cursor.fetchall()
+        except Error as e:
+            logging.error(f"Error when executing query {query} : {e}.")
+            return None
+
+    def _execute_write_query(self, query, dict_data={}):
         cursor = self.connection.cursor()
         try:
             cursor.execute(query, dict_data)

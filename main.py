@@ -6,7 +6,6 @@ def main():
     # retrieve access token
     authObject = src.Authenticate()
     access_token = authObject.access_token
-
     auto_refresh_thread = threading.Thread(target=authObject.auto_refresh) 
     auto_refresh_thread.start()
 
@@ -15,8 +14,12 @@ def main():
         users = [line.strip() for line in file.readlines()]
 
     api_scraper = src.APIScraper(access_token)
-    api_scraper.get_users(users)
-    # api_scraper.get_deviations("francoisl-artblog")
+
+    manager = api_scraper.manager
+
+    rows = manager.select_dev_url_id()
+    # api_scraper.get_users(users)
+    api_scraper.get_deviations(users)
 
     print("Finished collecting data. You can stop the programme now.")
 
