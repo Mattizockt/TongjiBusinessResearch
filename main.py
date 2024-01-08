@@ -9,17 +9,16 @@ def main():
     auto_refresh_thread = threading.Thread(target=authObject.auto_refresh) 
     auto_refresh_thread.start()
 
-    users = []
-    with open("data/testData/users.txt", "r") as file:
-        users = [line.strip() for line in file.readlines()]
+    # TODO when collecitng users, maybe store wether data was fetched an where it 
+    # was inserted to avoid duplicate fetching
+    # users = []
+    # with open("data/testData/users.txt", "r") as file:
+    #     users = [line.strip() for line in file.readlines()]
 
     api_scraper = src.APIScraper(access_token)
 
-    manager = api_scraper.manager
-
-    rows = manager.select_dev_url_id()
-    # api_scraper.get_users(users)
-    api_scraper.get_deviations(users)
+    # manager = api_scraper.manager
+    api_scraper.get_author_deviations("outcastcomix")
 
     print("Finished collecting data. You can stop the programme now.")
 

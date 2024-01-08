@@ -38,6 +38,7 @@ class SQLManager:
             groups_joined INT
         );
         """
+
         logging.info("Initializing users table.")
         self._execute_write_query(query)
 
@@ -67,9 +68,11 @@ class SQLManager:
             FOREIGN KEY (author_username) REFERENCES users(username) ON DELETE CASCADE
         );
         """
+
         logging.info("Initializing deviations table.")
         self._execute_write_query(query)
     
+    # used to insert information from deviantart api into sql
     def insert_deviation(self, dev_file):
         assert(isinstance(dev_file, dict))
 
@@ -81,7 +84,7 @@ class SQLManager:
             "title" : dev_file.get("title", None),
             "favourites" : dev_file.get("stats", {}).get("favourites", None),
             "comments" : dev_file.get("stats", {}).get("comments", None),
-            "author_username" : dev_file.get("author", {}).get("username", None),
+            "author_username" : self._convert_to_lowercase(dev_file.get("author", {}).get("username", None)),
             "category" : dev_file.get("category", None),
             "category_path" : dev_file.get("category_path", None),
             "is_downloadable" : dev_file.get("is_downloadable", None),
@@ -113,9 +116,11 @@ class SQLManager:
                 src = VALUES(src),
                 published_time = VALUES(published_time);
         """
+
         logging.info(f"Inserting information for deviation {deviationid} into deviations from the deviation API.")
         self._execute_write_query(query, data_to_insert)
-        
+    
+    # used to insert information from deviantart api into sql
     def insert_user(self, user_file):
         assert(isinstance(user_file, dict))
 
@@ -172,9 +177,22 @@ class SQLManager:
             comm_made = VALUES(comm_made),
             comm_rec = VALUES(comm_rec);
         """
+
         logging.info(f"Inserting information for user {username} into users from the deviation API.")
         self._execute_write_query(query, data_to_insert)
 
+    def select_dev_url_id(self):
+        query = """
+        SELECT
+            deviationid, url
+        FROM deviations
+        WHERE
+            views is null;
+        """
+        rows = self._execute_read_query(query)
+        return rows
+    
+    # used to insert information from scraper bot into sql
     def update_with_user_scrape(self, username, badges_rec, badges_giv, groups_joined, bio):
         data_to_insert = {
             "username" : username,
@@ -193,9 +211,11 @@ class SQLManager:
         WHERE
             username = %(username)s;
         """
+
         logging.info(f"Updating user {username} in users with scraped information.")
         self._execute_write_query(query, data_to_insert)
     
+    # used to insert information from scraper bot into sql
     def update_with_dev_scrape(self, deviationid, views, ai_marked):
         data_to_insert = {
             "deviationid" : deviationid,
@@ -210,19 +230,25 @@ class SQLManager:
         WHERE
             deviationid = %(deviationid)s;
         """
+
         logging.info(f"Updating deviation {deviationid} in deviations with scraped information")
         self._execute_write_query(query, data_to_insert)
-
-    def select_dev_url_id(self):
+    
+    def users_less_100_dev(self):
         query = """
-        SELECT
-            deviationid, url
-        FROM deviations
-        WHERE
-            views is null;
+        SELECT 
+            u.username, COUNT(d.author_username) 
+        AS occurences
+        FROM users u
+        LEFT JOIN 
+            deviations d ON u.username = d.author_username
+        GROUP BY u.username
+        HAVING
+            COUNT(d.author_username) < 100 
+            OR COUNT(d.author_username) IS NULl; 
         """
-        rows = self._execute_read_query(query)
-        return rows
+        logging.info(f"Collection users from SQL database that don't have 100 entries in the deviations table yet.")
+        self._execute_read_query(query)
     
     def remove_user(self, username):
         data_to_insert = {'username' : username}

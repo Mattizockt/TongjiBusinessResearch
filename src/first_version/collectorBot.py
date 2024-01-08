@@ -20,7 +20,12 @@ def main():
         force=True
     )
 
+    # name of the traditional song
     rows = sqlManager.select_dev_url_id()
+
+    # TODO sample atmost 100 deviations from a user,
+    # use random sample to sample the deviations
+    # binary search to get the start and end date
 
     for deviationid, deviationurl in rows:
         cB.get_deviation_information(deviationid, deviationurl)
@@ -62,7 +67,6 @@ class CollectorBot:
                 bio = self._get_user_bio(username)
 
                 self._sqlManager.update_with_user_scrape(username, badges_rec, badges_giv, groups_joined, bio)
-
         except Exception as e:
             logging.error(f"Error processing user information for user {username}: {str(e)}")
     
@@ -76,11 +80,10 @@ class CollectorBot:
 
         try: 
             if self._verify_dev_page_status(deviationid):
-                views = self._get_dev_view(deviationid)
+                views = self._get_dev_views(deviationid)
                 ai_marked = self._get_ai_marked(deviationid)
 
                 self._sqlManager.update_with_dev_scrape(deviationid, views, ai_marked)
-
         except Exception as e:
             logging.error(f"Error processing deviation {deviationid}: {e}")
 
@@ -99,7 +102,7 @@ class CollectorBot:
             return False
         return True
 
-    def _get_dev_view(self, deviationid):
+    def _get_dev_views(self, deviationid):
         try:
             xpath = '//span[@class="_24PDP"]//span[@class="_3AClx"]'
             views_element = self._driver.find_element(By.XPATH, xpath).text
@@ -119,7 +122,6 @@ class CollectorBot:
         except NoSuchElementException:
             logging.info(f"Deviation {deviationid} is not marked as AI created.")
             return False
-
 
     def _get_user_badges_info(self, username):
         xpath = "//div[@class='_6Syj_']//strong"
